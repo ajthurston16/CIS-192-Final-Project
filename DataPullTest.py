@@ -89,10 +89,10 @@ def create_matrix(from_this_date, until_this_date, season):
             # get the date
             date = raw_game_stats[1].get_text()
             date = datetime.datetime(int(date[0:4]), int(date[5:7]), int(date[8:]))
-            # don't collect this data if we haven't reached the start date and break inner loop
+            # don't collect this data if we haven't reached the start date and restart loop
             if date < from_this_date:
                 continue
-            # don't collect this data if we've passed the until date and restart loop
+            # don't collect this data if we've passed the until date and break loop
             if date >= until_this_date:
                 break_from_outer_loop = True
                 break;
