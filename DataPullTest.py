@@ -115,14 +115,22 @@ def create_matrix(from_this_date, until_this_date, season):
     return data, target
 
 
-def run_PCA(data, target):
+def run_PCA(data):
     # do PCA stuff
     # This reduces the number of columns in the matrix but also changes the numbers.
     # I have no idea what the numbers mean or which columns were kept.
+    game_id = np.array([[float(row[0]), float(row[1])] for row in data])
+    
     pca = decomposition.PCA(n_components=5)
     pca.fit(data)
+    #print("shape pre transform is {}").format(data.shape)
     princinpal_component_data = pca.transform(data)
-    return princinpal_component_data, target
+    #print("shape after transform is {}").format(princinpal_component_data.shape)
+    
+    for i, row in enumerate(princinpal_component_data):
+        row[0] = game_id[i][0]
+        row[1] = game_id[i][1]
+    return princinpal_component_data
     pass
 
 
@@ -155,7 +163,9 @@ def construct_validation_data(daily_data, team_histories):
         all_avgs = np.append([team1_id, team2_id], [team1_avg])
         all_avgs = np.append(all_avgs, team2_avg)
         validation_data = np.concatenate((validation_data, all_avgs))
+        
     validation_data = np.reshape(validation_data, (-1, 57))
+
     return validation_data
     pass
 
@@ -170,24 +180,24 @@ def update_team_histories(daily_data, team_histories):
     return team_histories
     pass
 
-
 def simulation(season):
-    # 2014-5 regular season started 10/28/2015 and ended 4/15/2015
+    # 2014-5 regular season started 10/28/2015 and ended 4/15/2015 (Consider not every season starts/ends on the same day)
     prev_start = datetime.datetime(season - 2, 10, 28)
     prev_end = datetime.datetime(season - 1, 04, 16)
     # Initial training set is all the games from 2014-5 season
     training_set, target = create_matrix(prev_start, prev_end, season-1)
     # Group games by team for purposes of averaging
     team_histories = group(training_set)
-    'training_set, target = run_PCA(training_set, target)'
+    training_set = run_PCA(training_set) #'added PCA'
+    print("Training set is size {}").format(training_set.shape)
     all_predictions = np.array([])
     all_targets = np.array([])
     model = naive_bayes.GaussianNB()
     model.fit(training_set, target)
     # 2015-6 regular season started 10/27/2015 and ended 4/13/2016
     current_date = datetime.datetime(season-1, 10, 27)
-    next_date = datetime.datetime(season-1, 10, 28)
-    end_date = datetime.datetime(season, 4, 13)
+    next_date = datetime.datetime(season-1, 10, 28) #changed season dates to decrease runtime for testing, change back
+    end_date = datetime.datetime(season-1, 12, 14)
     while current_date <= end_date:
         daily_data, expected = np.array([]), np.array([])
         # Pull in games from just a single day
@@ -196,30 +206,38 @@ def simulation(season):
             daily_data, expected = create_matrix(current_date, next_date, season)
             current_date = next_date
             next_date += datetime.timedelta(days=1)
-        # Run PCA on daily data, make prediction, append it to our result set
-        'daily_data, expected = run_PCA(daily_data, expected)'
+            print("shape of daily data is {}").format(daily_data.shape)
         # Construct the averages to be used as validation data
         validation_data = construct_validation_data(daily_data, team_histories)
+        # Run PCA on validation data
+        
+        validation_data = run_PCA(validation_data) #'running PCA'
+
+        print("shape of validation data is {}").format(validation_data.shape)
         daily_predictions = model.predict(validation_data)
+        print("daily predictions are {}").format(daily_predictions)
         all_predictions = np.append(all_predictions, daily_predictions)
         all_targets = np.append(all_targets, expected)
         print(current_date)
         print(zip(daily_predictions, expected))
         # Replace n oldest entries in training/target sets with n games from today
+        PCA_daily_data = run_PCA(daily_data)
         n, _ = daily_data.shape
-        training_set = np.concatenate((training_set[n:], daily_data))
+        training_set = np.concatenate((training_set[n:], PCA_daily_data))
         target = np.concatenate((target[n:], expected))
         # Add the day's games to team histories for future averages
         team_histories = update_team_histories(daily_data, team_histories)
         # Retrain the model with the actual outcomes of the day's games
-        'training_set, target = run_PCA(training_set, target)'
+        training_set = run_PCA(training_set) #running pca
         model.fit(training_set, target)
     return all_predictions, all_targets
     pass
 
 
 def main():
+    
     final_predictions, final_targets = simulation(2016)
+    
     p, r, f1, _ = metrics.precision_recall_fscore_support(final_predictions,
                                                           final_targets,
                                                           average='binary')
