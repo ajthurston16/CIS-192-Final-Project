@@ -213,7 +213,7 @@ def simulation(season):
         
         validation_data = run_PCA(validation_data) #'running PCA'
 
-        print("shape of validation data is {}").format(validation_data.shape)
+        #print("shape of validation data is {}").format(validation_data.shape)
         daily_predictions = model.predict(validation_data)
         print("daily predictions are {}").format(daily_predictions)
         all_predictions = np.append(all_predictions, daily_predictions)
