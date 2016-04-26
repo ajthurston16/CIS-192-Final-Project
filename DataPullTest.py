@@ -201,8 +201,8 @@ def simulation(season):
         # Construct the averages to be used as validation data
         validation_data = construct_validation_data(daily_data, team_histories)
         daily_predictions = model.predict(validation_data)
-        np.append(all_predictions, daily_predictions)
-        np.append(all_targets, expected)
+        all_predictions = np.append(all_predictions, daily_predictions)
+        all_targets = np.append(all_targets, expected)
         print(current_date)
         print(zip(daily_predictions, expected))
         # Replace n oldest entries in training/target sets with n games from today
@@ -214,7 +214,7 @@ def simulation(season):
         # Retrain the model with the actual outcomes of the day's games
         'training_set, target = run_PCA(training_set, target)'
         model.fit(training_set, target)
-    return daily_predictions, all_targets
+    return all_predictions, all_targets
     pass
 
 
