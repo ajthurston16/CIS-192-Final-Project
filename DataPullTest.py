@@ -60,13 +60,7 @@ def scrape_rivalry_history(team_code, opponent_code):
 
 
 def create_matrix(from_this_date, until_this_date, season):
-    franchise_codes = ['ATL', 'BOS', 'BRK', 'CHO', 'CHI', 'CLE', 'DAL', 'DEN',
-                       'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA',
-                       'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO',
-                       'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
-    franchise_numbers = [float(i) for i in xrange(31)]
-    # create dictionary of franchise codes to numbers
-    code_to_number = dict(zip(franchise_codes, franchise_numbers))
+    global num_wins
     list_of_game_stats = []
     target = []
     url_base = "http://www.basketball-reference.com/play-index/tgl_finder.cgi?request=1&match=game&lg_id=NBA&year_min=" +\
@@ -102,10 +96,18 @@ def create_matrix(from_this_date, until_this_date, season):
             # create a single row of the matrix with stats for one game
             game_stats = [team1_id] + [team2_id] + \
                 [float(raw_game_stats[i].get_text()) for i in xrange(6, 61)]
+            game_stats = game_stats + [sum(num_wins[team1_id])] + [sum(num_wins[team2_id])]
             # add row to list of rows to be made into numpy array
             list_of_game_stats.append(game_stats)
             # set binary vector target data by comparing points scored
             outcome = 1 if game_stats[15] > game_stats[42] else 0
+            # update the sliding binary array of the teams' game outcomes
+            if outcome == 1:
+                num_wins[team1_id] = num_wins[team1_id][1:] + [1]
+                num_wins[team2_id] = num_wins[team2_id][1:] + [0]
+            else:
+                num_wins[team1_id] = num_wins[team1_id][1:] + [0]
+                num_wins[team2_id] = num_wins[team2_id][1:] + [1]
             target.append(outcome)
         if break_from_outer_loop:
             break;
@@ -124,7 +126,6 @@ def run_PCA(data):
     #print("shape pre transform is {}").format(data.shape)
     princinpal_component_data = pca.transform(data)
     #print("shape after transform is {}").format(princinpal_component_data.shape)
-    
     for i, row in enumerate(princinpal_component_data):
         row[0] = game_id[i][0]
         row[1] = game_id[i][1]
@@ -134,7 +135,7 @@ def run_PCA(data):
 
 def group(matrix):
     # Group game stats by team_id for the purpose of averaging
-    team_histories = {float(i): np.array([]) for i in xrange(30)}
+    team_histories = {float(i): np.array([]) for i in xrange(31)}
     for row in matrix:
         team1_id = float(row[0])
         team2_id = float(row[1])
@@ -158,8 +159,9 @@ def construct_validation_data(daily_data, team_histories):
         team2_avg = np.mean(team_histories[team2_id], axis=0)[1:]
         all_avgs = np.append([team1_id, team2_id], [team1_avg])
         all_avgs = np.append(all_avgs, team2_avg)
+        all_avgs = np.append(all_avgs, [num_wins[team1_id], num_wins[team2_id]])
         validation_data = np.concatenate((validation_data, all_avgs))
-    validation_data = np.reshape(validation_data, (-1, 57))
+    validation_data = np.reshape(validation_data, (-1, 59))
 
     return validation_data
     pass
@@ -186,6 +188,7 @@ def simulation(season):
     # Initial training set is all the games from 2014-5 season
     training_set, target = create_matrix(prev_start, prev_end, season-1)
     # Group games by team for purposes of averaging
+    print "got here"
     team_histories = group(training_set)
     pca = decomposition.PCA(n_components=20)
     training_set = pca.fit_transform(training_set) #'added PCA'
@@ -234,9 +237,20 @@ def simulation(season):
     return all_predictions, all_targets
     pass
 
+code_to_number = None
+num_wins = None
 
 def main():
-    
+    franchise_codes = ['ATL', 'BOS', 'BRK', 'CHO', 'CHI', 'CLE', 'DAL', 'DEN',
+                       'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA',
+                       'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO',
+                       'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
+    franchise_numbers = [float(i) for i in xrange(31)]
+    # create dictionary of franchise codes to numbers
+    global code_to_number
+    code_to_number = dict(zip(franchise_codes, franchise_numbers))
+    global num_wins
+    num_wins = dict(zip(franchise_numbers, ([0] * 83 for _ in xrange(31))))
     final_predictions, final_targets = simulation(2016)
     
     p, r, f1, _ = metrics.precision_recall_fscore_support(final_predictions,
