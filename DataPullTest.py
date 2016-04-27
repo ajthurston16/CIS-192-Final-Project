@@ -37,7 +37,6 @@ def scrape_rosters():
         all_rosters[code] = roster_array
     print all_rosters
     return all_rosters
-    pass
 
 
 def scrape_rivalry_history(team_code, opponent_code):
@@ -56,7 +55,6 @@ def scrape_rivalry_history(team_code, opponent_code):
     for i in range(1, len(raw_strings), 16):
         date_diff_tuples.append((raw_strings[i], raw_strings[i + 10]))
     return np.array(date_diff_tuples)
-    pass
 
 
 def create_matrix(from_this_date, until_this_date, season):
@@ -130,24 +128,6 @@ def run_PCA(data):
         row[0] = game_id[i][0]
         row[1] = game_id[i][1]
     return princinpal_component_data
-    pass
-
-
-def group(matrix):
-    # Group game stats by team_id for the purpose of averaging
-    team_histories = {float(i): np.array([]) for i in xrange(31)}
-    for row in matrix:
-        team1_id = float(row[0])
-        team2_id = float(row[1])
-        minutes_played = float(row[2])
-        team1_stats = np.append(minutes_played, row[3:30])
-        team2_stats = np.append(minutes_played, row[30:58])
-        team_histories[team1_id] = np.append(team_histories[team1_id], team1_stats)
-        team_histories[team2_id] = np.append(team_histories[team2_id], team2_stats)
-    for k, v in team_histories.items():
-        team_histories[k] = np.reshape(v, (-1, 28))
-    return team_histories
-    pass
 
 
 def construct_validation_data(daily_data, team_histories):
@@ -164,11 +144,12 @@ def construct_validation_data(daily_data, team_histories):
     validation_data = np.reshape(validation_data, (-1, 59))
 
     return validation_data
-    pass
 
 
-def update_team_histories(daily_data, team_histories):
-    for row in daily_data:
+def update_team_histories(matrix, team_histories):
+    if team_histories is None:
+         team_histories = {float(i): np.array([]) for i in xrange(31)}
+    for row in matrix:
         team1_id = float(row[0])
         team2_id = float(row[1])
         minutes_played = float(row[2])
@@ -179,7 +160,7 @@ def update_team_histories(daily_data, team_histories):
     for k, v in team_histories.items():
         team_histories[k] = np.reshape(v, (-1, 28))
     return team_histories
-    pass
+
 
 def simulation(season):
     # 2014-5 regular season started 10/28/2015 and ended 4/15/2015 (Consider not every season starts/ends on the same day)
@@ -189,7 +170,7 @@ def simulation(season):
     training_set, target = create_matrix(prev_start, prev_end, season-1)
     # Group games by team for purposes of averaging
     print "got here"
-    team_histories = group(training_set)
+    team_histories = update_team_histories(training_set, None)
     pca = decomposition.PCA(n_components=20)
     training_set = pca.fit_transform(training_set) #'added PCA'
     print("Training set is size {}").format(training_set.shape)
@@ -235,7 +216,7 @@ def simulation(season):
         "training_set = run_PCA(training_set) #running pca"
         model.fit(training_set, target)
     return all_predictions, all_targets
-    pass
+
 
 code_to_number = None
 num_wins = None
