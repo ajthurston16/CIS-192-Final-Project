@@ -139,7 +139,7 @@ def construct_validation_data(daily_data, team_histories):
         team2_avg = np.mean(team_histories[team2_id], axis=0)[1:]
         all_avgs = np.append([team1_id, team2_id], [team1_avg])
         all_avgs = np.append(all_avgs, team2_avg)
-        all_avgs = np.append(all_avgs, [num_wins[team1_id], num_wins[team2_id]])
+        all_avgs = np.append(all_avgs, [sum(num_wins[team1_id]), sum(num_wins[team2_id])])
         validation_data = np.concatenate((validation_data, all_avgs))
     validation_data = np.reshape(validation_data, (-1, 59))
 
@@ -154,7 +154,7 @@ def update_team_histories(matrix, team_histories):
         team2_id = float(row[1])
         minutes_played = float(row[2])
         team1_stats = np.append(minutes_played, row[3:30])
-        team2_stats = np.append(minutes_played, row[30:58])
+        team2_stats = np.append(minutes_played, row[30:57])
         team_histories[team1_id] = np.append(team_histories[team1_id], team1_stats)
         team_histories[team2_id] = np.append(team_histories[team2_id], team2_stats)
     for k, v in team_histories.items():
