@@ -134,17 +134,15 @@ def run_PCA(data):
 
 def group(matrix):
     # Group game stats by team_id for the purpose of averaging
-    team_histories = {float(i): None for i in xrange(30)}
+    team_histories = {float(i): np.array([]) for i in xrange(30)}
     for row in matrix:
-        team_id = float(row[0])
-        game_stats = row[2:30]
-        if team_histories[team_id] is None:
-            team_histories[team_id] = game_stats
-        else:
-            team_histories[team_id] = np.concatenate((team_histories[team_id], game_stats))
-    # Concatenate is flattening the array unexpectedly
-    # Have to reshape each matrix to get the data in correct form.
-    # If someone sees a fix, please add it
+        team1_id = float(row[0])
+        team2_id = float(row[1])
+        minutes_played = float(row[2])
+        team1_stats = np.append(minutes_played, row[3:30])
+        team2_stats = np.append(minutes_played, row[30:58])
+        team_histories[team1_id] = np.append(team_histories[team1_id], team1_stats)
+        team_histories[team2_id] = np.append(team_histories[team2_id], team2_stats)
     for k, v in team_histories.items():
         team_histories[k] = np.reshape(v, (-1, 28))
     return team_histories
@@ -161,7 +159,6 @@ def construct_validation_data(daily_data, team_histories):
         all_avgs = np.append([team1_id, team2_id], [team1_avg])
         all_avgs = np.append(all_avgs, team2_avg)
         validation_data = np.concatenate((validation_data, all_avgs))
-        
     validation_data = np.reshape(validation_data, (-1, 57))
 
     return validation_data
@@ -169,10 +166,14 @@ def construct_validation_data(daily_data, team_histories):
 
 
 def update_team_histories(daily_data, team_histories):
-    for game in daily_data:
-        team_id = float(game[0])
-        game_stats = game[2:30]
-        team_histories[team_id] = np.append(team_histories[team_id], game_stats)
+    for row in daily_data:
+        team1_id = float(row[0])
+        team2_id = float(row[1])
+        minutes_played = float(row[2])
+        team1_stats = np.append(minutes_played, row[3:30])
+        team2_stats = np.append(minutes_played, row[30:58])
+        team_histories[team1_id] = np.append(team_histories[team1_id], team1_stats)
+        team_histories[team2_id] = np.append(team_histories[team2_id], team2_stats)
     for k, v in team_histories.items():
         team_histories[k] = np.reshape(v, (-1, 28))
     return team_histories
