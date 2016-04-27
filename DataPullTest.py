@@ -1,4 +1,3 @@
-
 '''
 Created on Mar 16, 2016
 @author: Alex
@@ -120,8 +119,7 @@ def run_PCA(data):
     # This reduces the number of columns in the matrix but also changes the numbers.
     # I have no idea what the numbers mean or which columns were kept.
     game_id = np.array([[float(row[0]), float(row[1])] for row in data])
-    
-    pca = decomposition.PCA(n_components=5)
+    pca = decomposition.PCA(n_components=10)
     pca.fit(data)
     #print("shape pre transform is {}").format(data.shape)
     princinpal_component_data = pca.transform(data)
@@ -188,7 +186,8 @@ def simulation(season):
     training_set, target = create_matrix(prev_start, prev_end, season-1)
     # Group games by team for purposes of averaging
     team_histories = group(training_set)
-    training_set = run_PCA(training_set) #'added PCA'
+    pca = decomposition.PCA(n_components=20)
+    training_set = pca.fit_transform(training_set) #'added PCA'
     print("Training set is size {}").format(training_set.shape)
     all_predictions = np.array([])
     all_targets = np.array([])
@@ -211,9 +210,9 @@ def simulation(season):
         validation_data = construct_validation_data(daily_data, team_histories)
         # Run PCA on validation data
         
-        validation_data = run_PCA(validation_data) #'running PCA'
-
-        #print("shape of validation data is {}").format(validation_data.shape)
+        validation_data = pca.transform(validation_data) #'running PCA'
+        print('shape of PCAed validation data is {}').format(validation_data.shape)
+        
         daily_predictions = model.predict(validation_data)
         print("daily predictions are {}").format(daily_predictions)
         all_predictions = np.append(all_predictions, daily_predictions)
@@ -221,14 +220,15 @@ def simulation(season):
         print(current_date)
         print(zip(daily_predictions, expected))
         # Replace n oldest entries in training/target sets with n games from today
-        PCA_daily_data = run_PCA(daily_data)
+        PCA_daily_data = pca.transform(daily_data)
         n, _ = daily_data.shape
         training_set = np.concatenate((training_set[n:], PCA_daily_data))
         target = np.concatenate((target[n:], expected))
         # Add the day's games to team histories for future averages
         team_histories = update_team_histories(daily_data, team_histories)
         # Retrain the model with the actual outcomes of the day's games
-        training_set = run_PCA(training_set) #running pca
+        # Don't think we need rerun PCA on rows that have already been PCAed
+        "training_set = run_PCA(training_set) #running pca"
         model.fit(training_set, target)
     return all_predictions, all_targets
     pass
