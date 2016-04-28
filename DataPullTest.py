@@ -8,6 +8,8 @@ from bs4 import BeautifulSoup, SoupStrainer
 import requests
 from sklearn import decomposition
 from sklearn import datasets, naive_bayes, metrics
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 import datetime
 
 
@@ -83,7 +85,6 @@ def create_matrix(from_this_date, until_this_date, season):
             # get the date
             date = raw_game_stats[1].get_text()
             date = datetime.datetime(int(date[0:4]), int(date[5:7]), int(date[8:]))
-            print date
             # don't collect this data if we haven't reached the start date and break inner loop
             if date < from_this_date:
                 continue
@@ -178,12 +179,12 @@ def simulation(season):
     # Group games by team for purposes of averaging
     print "got here"
     team_histories = update_team_histories(training_set, None, True)
-    pca = decomposition.PCA(n_components=20)
+    pca = decomposition.PCA(n_components=25)
     training_set = pca.fit_transform(training_set) #'added PCA'
     print("Training set is size {}").format(training_set.shape)
     all_predictions = np.array([])
     all_targets = np.array([])
-    model = naive_bayes.GaussianNB()
+    model = RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)
     model.fit(training_set, target)
     # 2015-6 regular season started 10/27/2015 and ended 4/13/2016
     current_date = datetime.datetime(season-1, 10, 27)
