@@ -67,7 +67,9 @@ def create_matrix(from_this_date, until_this_date, season):
     date = ''
     for offset in offsets:
         url = url_base + str(offset)
+        print "making url request"
         r = requests.get(url)
+        print "completed url request"
         soup = BeautifulSoup(r.text, "html.parser")
         games = soup.findAll("tr", class_=[u''])[2:]
         break_from_outer_loop = False
@@ -81,6 +83,7 @@ def create_matrix(from_this_date, until_this_date, season):
             # get the date
             date = raw_game_stats[1].get_text()
             date = datetime.datetime(int(date[0:4]), int(date[5:7]), int(date[8:]))
+            print date
             # don't collect this data if we haven't reached the start date and break inner loop
             if date < from_this_date:
                 continue
@@ -146,7 +149,7 @@ def construct_validation_data(daily_data, team_histories):
     return validation_data
 
 
-def update_team_histories(matrix, team_histories):
+def update_team_histories(matrix, team_histories, first_time):
     if team_histories is None:
          team_histories = {float(i): np.array([]) for i in xrange(31)}
     for row in matrix:
@@ -155,8 +158,12 @@ def update_team_histories(matrix, team_histories):
         minutes_played = float(row[2])
         team1_stats = np.append(minutes_played, row[3:30])
         team2_stats = np.append(minutes_played, row[30:57])
-        team_histories[team1_id] = np.append(team_histories[team1_id], team1_stats)
-        team_histories[team2_id] = np.append(team_histories[team2_id], team2_stats)
+        if first_time:
+            team_histories[team1_id] = np.append(team_histories[team1_id], team1_stats)
+            team_histories[team2_id] = np.append(team_histories[team2_id], team2_stats)
+        else:
+            team_histories[team1_id] = np.append(team_histories[team1_id][1:], team1_stats)
+            team_histories[team2_id] = np.append(team_histories[team2_id][1:], team2_stats)
     for k, v in team_histories.items():
         team_histories[k] = np.reshape(v, (-1, 28))
     return team_histories
@@ -170,7 +177,7 @@ def simulation(season):
     training_set, target = create_matrix(prev_start, prev_end, season-1)
     # Group games by team for purposes of averaging
     print "got here"
-    team_histories = update_team_histories(training_set, None)
+    team_histories = update_team_histories(training_set, None, True)
     pca = decomposition.PCA(n_components=20)
     training_set = pca.fit_transform(training_set) #'added PCA'
     print("Training set is size {}").format(training_set.shape)
@@ -210,7 +217,7 @@ def simulation(season):
         training_set = np.concatenate((training_set[n:], PCA_daily_data))
         target = np.concatenate((target[n:], expected))
         # Add the day's games to team histories for future averages
-        team_histories = update_team_histories(daily_data, team_histories)
+        team_histories = update_team_histories(daily_data, team_histories, False)
         # Retrain the model with the actual outcomes of the day's games
         # Don't think we need rerun PCA on rows that have already been PCAed
         "training_set = run_PCA(training_set) #running pca"
@@ -233,7 +240,6 @@ def main():
     global num_wins
     num_wins = dict(zip(franchise_numbers, ([0] * 83 for _ in xrange(31))))
     final_predictions, final_targets = simulation(2016)
-    
     p, r, f1, _ = metrics.precision_recall_fscore_support(final_predictions,
                                                           final_targets,
                                                           average='binary')
