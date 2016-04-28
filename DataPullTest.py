@@ -6,6 +6,7 @@ import numpy as np
 import urllib2
 from bs4 import BeautifulSoup, SoupStrainer
 import requests
+from matplotlib import pyplot as plt
 from sklearn import decomposition
 from sklearn import datasets, naive_bayes, metrics
 from sklearn.svm import SVC
@@ -169,6 +170,55 @@ def update_team_histories(matrix, team_histories, first_time):
         team_histories[k] = np.reshape(v, (-1, 28))
     return team_histories
 
+def plot(franchise_codes, predicted_winners):
+    # Getting Teams wins
+    wins = np.array([])
+    for i in range(30):
+        array = num_wins[i]
+        temp = 0
+        for value in array:
+            if value == 1:
+                temp += 1
+        wins = np.append(wins, temp)
+        
+    #get golden state wins
+    gs_wins_real = np.array([])
+    array = num_wins[code_to_number['GSW']]
+    print(array)
+    temp = 0
+    for game in array:
+        if game == 1:
+            temp += 1
+            gs_wins_real = np.append(gs_wins_real, temp)
+        else:
+            gs_wins_real = np.append(gs_wins_real, temp)
+            
+    gs_wins_predicted = np.array([])
+    temp = 0
+    for i, game in enumerate(predicted_winners):
+        if game == code_to_number['GSW']:
+            if i % 2:
+                temp += 1
+                gs_wins_predicted = np.append(gs_wins_predicted, temp)
+            else:
+                gs_wins_predicted = np.append(gs_wins_predicted, temp)
+     
+     
+    print(gs_wins_predicted)
+    print(gs_wins_predicted.shape, gs_wins_real.shape)
+    plt.figure(1)
+    plt.plot(gs_wins_real, gs_wins_predicted, lw=2)
+    plt.title('Golden State Wins')
+    plt.xlabel('Games Played')
+    plt.ylabel('Number of Wins')  
+    print(wins)
+    plt.figure(2)
+    plt.hist(wins, 50, normed=1, facecolor='g', alpha=0.75)
+    plt.xticks(range(30), franchise_codes)
+    plt.ylabel('Number of Wins')
+    plt.xlabel('Teams')
+    
+    plt.show()
 
 def simulation(season):
     # 2014-5 regular season started 10/28/2015 and ended 4/15/2015 (Consider not every season starts/ends on the same day)
@@ -177,19 +227,16 @@ def simulation(season):
     # Initial training set is all the games from 2014-5 season
     training_set, target = create_matrix(prev_start, prev_end, season-1)
     # Group games by team for purposes of averaging
-    print "got here"
     team_histories = update_team_histories(training_set, None, True)
     pca = decomposition.PCA(n_components=25)
     training_set = pca.fit_transform(training_set) #'added PCA'
-    print("Training set is size {}").format(training_set.shape)
-    all_predictions = np.array([])
-    all_targets = np.array([])
+    all_predictions, all_targets, winners = np.array([]), np.array([]), np.array([])
     model = RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)
     model.fit(training_set, target)
     # 2015-6 regular season started 10/27/2015 and ended 4/13/2016
     current_date = datetime.datetime(season-1, 10, 27)
     next_date = datetime.datetime(season-1, 10, 28) #changed season dates to decrease runtime for testing, change back
-    end_date = datetime.datetime(season-1, 12, 14)
+    end_date = datetime.datetime(season, 4, 13)
     while current_date <= end_date:
         daily_data, expected = np.array([]), np.array([])
         # Pull in games from just a single day
@@ -198,18 +245,27 @@ def simulation(season):
             daily_data, expected = create_matrix(current_date, next_date, season)
             current_date = next_date
             next_date += datetime.timedelta(days=1)
-            print("shape of daily data is {}").format(daily_data.shape)
+            
         # Construct the averages to be used as validation data
         validation_data = construct_validation_data(daily_data, team_histories)
-        # Run PCA on validation data
         
+        # Get team id's
+        game_ids = [[row[0], row[1]] for row in validation_data]
+        
+        # Run PCA on validation data
         validation_data = pca.transform(validation_data) #'running PCA'
-        print('shape of PCAed validation data is {}').format(validation_data.shape)
+        #print('PCAed validation data is {}').format(validation_data)
         
         daily_predictions = model.predict(validation_data)
         print("daily predictions are {}").format(daily_predictions)
+        
+        # Get the predicted winners game_id
+        game_winners = [[game_ids[i][winner], game_ids[i][1 - winner]] for i, winner in enumerate(daily_predictions)]
+        
         all_predictions = np.append(all_predictions, daily_predictions)
         all_targets = np.append(all_targets, expected)
+        winners = np.append(winners, game_winners)
+        
         print(current_date)
         print(zip(daily_predictions, expected))
         # Replace n oldest entries in training/target sets with n games from today
@@ -223,7 +279,8 @@ def simulation(season):
         # Don't think we need rerun PCA on rows that have already been PCAed
         "training_set = run_PCA(training_set) #running pca"
         model.fit(training_set, target)
-    return all_predictions, all_targets
+    print(winners)
+    return all_predictions, all_targets, winners
 
 
 code_to_number = None
@@ -240,7 +297,12 @@ def main():
     code_to_number = dict(zip(franchise_codes, franchise_numbers))
     global num_wins
     num_wins = dict(zip(franchise_numbers, ([0] * 83 for _ in xrange(31))))
-    final_predictions, final_targets = simulation(2016)
+    final_predictions, final_targets, winners = simulation(2016)
+    print(winners)
+    plot(franchise_codes, winners)
+    
+    
+    
     p, r, f1, _ = metrics.precision_recall_fscore_support(final_predictions,
                                                           final_targets,
                                                           average='binary')
